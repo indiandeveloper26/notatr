@@ -1,47 +1,12 @@
-
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-app.use(express.json());
-
-// In-memory user and trade store
-let USER_CHAT_IDS = [];
-let activeTrades = {};  // { chatId: { symbol: { signal, entry, target, stoploss } } }
-
-// Start bot for a user (you can call this from frontend)
-app.post('/start', (req, res) => {
-  const { chatId } = req.body;
-  if (!chatId) return res.status(400).json({ error: 'chatId is required' });
-
-  if (!USER_CHAT_IDS.includes(chatId)) {
-    USER_CHAT_IDS.push(chatId);
-    return res.json({ message: '✅ Subscribed to signals' });
-  } else {
-    return res.json({ message: 'Already subscribed' });
-  }
+app.get('/', (req, res) => {
+  res.send('Hello from Node.js server!');
 });
 
-// Get active trades
-app.get('/health', (req, res) => {
-res.send("this is helth check api")
+// localhost ki jagah 0.0.0.0 par listen karo taaki bahar se bhi access ho sake
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
-
-// Example route to manually add a trade (for testing)
-app.post('/trade', (req, res) => {
-  const { chatId, symbol, signal, entry, target, stoploss } = req.body;
-  if (!chatId || !symbol || !signal || !entry || !target || !stoploss) {
-    return res.status(400).json({ error: 'Missing fields' });
-  }
-
-  if (!activeTrades[chatId]) activeTrades[chatId] = {};
-  activeTrades[chatId][symbol] = { signal, entry, target, stoploss, time: Date.now() };
-
-  return res.json({ message: 'Trade added' });
-});
-
-app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
-
-module.exports = { USER_CHAT_IDS, activeTrades };
