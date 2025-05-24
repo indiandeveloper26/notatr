@@ -280,11 +280,22 @@ const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
 // Aap yahan interval change kar sakte hain '5m', '15m', '1h'
 const INTERVAL = '15m';  // Change to '1h' or '5m' as needed
 
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
+const SYMBOLS = [
+  'BTCUSDT',
+  'ETHUSDT',
+  'BNBUSDT',
+  'SOLUSDT',
+  'XRPUSDT',
+  'DOGEUSDT',
+  'ADAUSDT',
+  'AVAXUSDT',
+  'DOTUSDT',
+  'LINKUSDT'
+];
 const VOLUME_SMA_PERIOD = 20;
 const USER_IDS_FILE = './user_chat_ids.json';
 
-const bot = new TelegramBot('8003756443:AAHOP678U2KdAiTuVYQZVQ2DsYnT2Oq4PnE', { polling: true });
+const bot = new TelegramBot("7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY", { polling: true });
 let USER_CHAT_IDS = [];
 let activeTrades = {};
 let lastSignalSent = {};
