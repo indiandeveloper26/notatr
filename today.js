@@ -5,7 +5,11 @@ const TelegramBot = require('node-telegram-bot-api');
 const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
 
 // Change interval here to 15 minutes candles
-const INTERVAL = '15m';
+
+const INTERVAL = '15m'
+
+
+
 const SYMBOLS = [
   'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
   'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'LINKUSDT'
@@ -14,7 +18,7 @@ const SYMBOLS = [
 const VOLUME_SMA_PERIOD = 20;
 const USER_IDS_FILE = './user_chat_ids.json';
 
-const bot = new TelegramBot("7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY" || "YOUR_BOT_TOKEN_HERE", { polling: true });
+const bot = new TelegramBot('8003756443:AAHOP678U2KdAiTuVYQZVQ2DsYnT2Oq4PnE'|| "YOUR_BOT_TOKEN_HERE", { polling: true });
 
 let USER_CHAT_IDS = [];
 let activeTrades = {};
@@ -228,7 +232,23 @@ bot.onText(/\/active/, (msg) => {
 loadUserChatIds();
 
 // Check one symbol every minute (rotating symbols)
-setInterval(checkNextSymbol, 60 * 1000);
+// setInterval(checkNextSymbol, 60 * 1000);
+
+setInterval(checkNextSymbol,  60 * 1000); // every 5 minutes
+
 
 console.log('Bot started and polling...');
+
+
+
+
+
+
+
+
+
+
+
+
+
 
