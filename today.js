@@ -6,7 +6,7 @@ const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
 
 // Change interval here to 15 minutes candles
 
-const INTERVAL = '15m'
+const INTERVAL = ["15m", "1h"]
 
 
 
