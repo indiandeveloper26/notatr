@@ -307,7 +307,7 @@ const SYMBOLS = [
   'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'LINKUSDT'
 ];
 
-const bot = new TelegramBot("8003756443:AAHOP678U2KdAiTuVYQZVQ2DsYnT2Oq4PnE", { polling: true });
+const bot = new TelegramBot("7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY", { polling: true });
 const USER_IDS_FILE = './user_chat_ids.json';
 const VOLUME_SMA_PERIOD = 20;
 
