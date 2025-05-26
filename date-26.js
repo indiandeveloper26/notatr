@@ -1,951 +1,77 @@
-// require('dotenv').config();
-// const axios = require('axios');
-// const fs = require('fs');
-// const TelegramBot = require('node-telegram-bot-api');
-// const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
-// const MLR = require('ml-regression').MultivariateLinearRegression;
-
-// // Config
-// const INTERVAL = "1h"; // single interval for simplicity
-// const SYMBOLS = [
-//     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", // Added USDT suffix for Binance compatibility
-//     "ADAUSDT", "DOGEUSDT", "SHIBUSDT", "DOTUSDT", "LINKUSDT",
-//     "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT",
-//     "XLMUSDT", "UNIUSDT", "AVAXUSDT", "NEARUSDT", "ICPUSDT",
-//     "APTUSDT", "ATOMUSDT", "OPUSDT", "ARBUSDT", "FILUSDT",
-//     "IMXUSDT", "EGLDUSDT", "SUIUSDT", "GRTUSDT", "SANDUSDT",
-//     "MANAUSDT", "AAVEUSDT", "MKRUSDT", "LDOUSDT", "QNTUSDT",
-//     "CRVUSDT", "COMPUSDT", "SNXUSDT", "ZECUSDT", "DASHUSDT",
-//     "EOSUSDT", "XTZUSDT", "VETUSDT", "THETAUSDT", "FTMUSDT",
-//     "KSMUSDT", "CHZUSDT", "FLOWUSDT", "GMXUSDT", "DYDXUSDT"
-// ];
-// const VOLUME_SMA_PERIOD = 20;
-// const USER_IDS_FILE = './user_chat_ids.json';
-
-// const botToken = process.env.BOT_TOKEN || '7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY'; // .env से टोकन लेने का तरीका
-// const bot = new TelegramBot(botToken, { polling: true });
-
-// let USER_CHAT_IDS = [];
-// let activeTrades = {};
-// let lastSignalSent = {};
-// let userStatus = {}; // Added to manage user active/inactive status
-
-// // Load users
-// function loadUserChatIds() {
-//     if (fs.existsSync(USER_IDS_FILE)) {
-//         USER_CHAT_IDS = JSON.parse(fs.readFileSync(USER_IDS_FILE));
-//     }
-// }
-// function saveUserChatIds() {
-//     fs.writeFileSync(USER_IDS_FILE, JSON.stringify(USER_CHAT_IDS));
-// }
-
-// // Fetch candle data
-// async function fetchKlines(symbol, interval, limit = 100) {
-//     try {
-//         const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-//         const res = await axios.get(url);
-//         return res.data.map(c => ({
-//             open: parseFloat(c[1]),
-//             high: parseFloat(c[2]),
-//             low: parseFloat(c[3]),
-//             close: parseFloat(c[4]),
-//             volume: parseFloat(c[5]),
-//             time: c[0]
-//         }));
-//     } catch (e) {
-//         console.error("Kline fetch error for", symbol, e.message);
-//         return null;
-//     }
-// }
-
-// // Fetch current price
-// async function fetchCurrentPrice(symbol) {
-//     try {
-//         const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
-//         const res = await axios.get(url);
-//         return parseFloat(res.data.price);
-//     } catch (e) {
-//         console.error("Price fetch error for", symbol, e.message);
-//         return null;
-//     }
-// }
-
-// // ML model for target/stoploss multipliers
-// function trainMLModel(atrArray, priceArray, targets, stoplosses) {
-//     // Input features: ATR and price
-//     // Output: target multiplier and stoploss multiplier
-//     const inputs = atrArray.map((atr, i) => [atr, priceArray[i]]);
-//     const targetMultipliers = targets.map((target, i) => (target - priceArray[i]) / atrArray[i]);
-//     const stoplossMultipliers = stoplosses.map((sl, i) => Math.abs(sl - priceArray[i]) / atrArray[i]);
-
-//     const targetModel = new MLR(inputs, targetMultipliers);
-//     const stoplossModel = new MLR(inputs, stoplossMultipliers);
-
-//     return { targetModel, stoplossModel };
-// }
-
-// // Predict multipliers using ML model
-// function predictMultipliers(atr, price, targetModel, stoplossModel) {
-//     const input = [atr, price];
-//     let targetMultiplier = targetModel.predict(input);
-//     let stoplossMultiplier = stoplossModel.predict(input);
-
-//     // Clamp reasonable ranges
-//     if (targetMultiplier < 0.5) targetMultiplier = 0.5;
-//     if (targetMultiplier > 3) targetMultiplier = 3;
-//     if (stoplossMultiplier < 0.3) stoplossMultiplier = 0.3;
-//     if (stoplossMultiplier > 2) stoplossMultiplier = 2;
-
-//     return { targetMultiplier, stoplossMultiplier };
-// }
-
-// // Calculate targets based on ML-predicted multipliers
-// function calculateTargetsML(signal, price, atr, mlModels) {
-//     let { targetModel, stoplossModel } = mlModels;
-
-//     if (!targetModel || !stoplossModel) {
-//         // Fallback fixed multipliers if no ML model yet
-//         return calculateTargetsATRBasedFallback(signal, price, atr);
-//     }
-
-//     const { targetMultiplier, stoplossMultiplier } = predictMultipliers(atr, price, targetModel, stoplossModel);
-
-//     let target, stoploss;
-//     if (signal === 'BUY') {
-//         target = price + targetMultiplier * atr;
-//         stoploss = price - stoplossMultiplier * atr;
-//     } else {
-//         target = price - targetMultiplier * atr;
-//         stoploss = price + stoplossMultiplier * atr;
-//     }
-//     return { target, stoploss };
-// }
-
-// // Fallback function with your original logic (for when ML model not ready)
-// function calculateTargetsATRBasedFallback(signal, price, atr) {
-//     const atrPercent = (atr / price) * 100;
-//     let targetMultiplier = 1.5;
-//     let stoplossMultiplier = 1.0;
-
-//     if (atrPercent < 0.5) {
-//         targetMultiplier = 2.0;
-//         stoplossMultiplier = 0.7;
-//     } else if (atrPercent > 2.0) {
-//         targetMultiplier = 1.2;
-//         stoplossMultiplier = 1.5;
-//     }
-
-//     let target, stoploss;
-//     if (signal === 'BUY') {
-//         target = price + targetMultiplier * atr;
-//         stoploss = price - stoplossMultiplier * atr;
-//     } else {
-//         target = price - targetMultiplier * atr;
-//         stoploss = price + stoplossMultiplier * atr;
-//     }
-//     return { target, stoploss };
-// }
-
-// // Analyze candles for signals and build ML training data
-// function analyzeData(candles, mlTrainingData) {
-//     const closes = candles.map(c => c.close);
-//     const highs = candles.map(c => c.high);
-//     const lows = candles.map(c => c.low);
-//     const volumes = candles.map(c => c.volume);
-
-//     const rsi = RSI.calculate({ values: closes, period: 14 });
-//     const ema = EMA.calculate({ values: closes, period: 14 });
-//     const macd = MACD.calculate({
-//         values: closes,
-//         fastPeriod: 12,
-//         slowPeriod: 26,
-//         signalPeriod: 9,
-//         SimpleMAOscillator: false,
-//         SimpleMASignal: false
-//     });
-//     const atr = ATR.calculate({ high: highs, low: lows, close: closes, period: 14 });
-//     const volumeSMA = SMA.calculate({ values: volumes, period: VOLUME_SMA_PERIOD });
-
-//     const lastClose = closes.at(-1);
-//     const lastEma = ema.at(-1);
-//     const lastMacd = macd.at(-1);
-//     const lastRsi = rsi.at(-1);
-//     const lastAtr = atr.at(-1);
-//     const lastVolume = volumes.at(-1);
-//     const lastVolumeSMA = volumeSMA.at(-1);
-
-//     let signal = 'HOLD';
-//     const volumeOkay = lastVolume > (0.8 * lastVolumeSMA);
-
-//     if (volumeOkay && lastClose > lastEma && lastMacd.MACD > lastMacd.signal && lastRsi > 50) {
-//         signal = 'BUY';
-//     } else if (volumeOkay && lastClose < lastEma && lastMacd.MACD < lastMacd.signal && lastRsi < 50) {
-//         signal = 'SELL';
-//     }
-
-//     let target = null, stoploss = null;
-//     if (signal !== 'HOLD') {
-//         // We will not calculate targets here, will do it in main logic with ML models
-//         // But collect training data for ML model if possible
-//         if (mlTrainingData) {
-//             // For simplicity, pretend actual targets & stoplosses = lastClose +/- 1.5*ATR (you can improve this with real historical hits)
-//             const actualTarget = signal === 'BUY' ? lastClose + 1.5 * lastAtr : lastClose - 1.5 * lastAtr;
-//             const actualStoploss = signal === 'BUY' ? lastClose - 1.0 * lastAtr : lastClose + 1.0 * lastAtr;
-//             mlTrainingData.atr.push(lastAtr);
-//             mlTrainingData.price.push(lastClose);
-//             mlTrainingData.targets.push(actualTarget);
-//             mlTrainingData.stoplosses.push(actualStoploss);
-//         }
-//     }
-
-//     return { signal, lastClose, lastRsi, lastEma, lastMacd, lastVolume, lastVolumeSMA, lastAtr };
-// }
-
-// // Updated checkIfHit function to return summary data
-// function checkIfHit(price, trade) {
-//     if (!trade) return false;
-
-//     let hitType = false;
-//     let profitLoss = 0;
-//     let profitLossPercent = 0;
-
-//     if (trade.signal === 'BUY') {
-//         if (price >= trade.target) {
-//             hitType = 'target';
-//             profitLoss = price - trade.entry;
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         } else if (price <= trade.stoploss) {
-//             hitType = 'stoploss';
-//             profitLoss = price - trade.entry;
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         }
-//     } else { // SELL signal
-//         if (price <= trade.target) {
-//             hitType = 'target';
-//             profitLoss = trade.entry - price; // For sell, profit if price goes down
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         } else if (price >= trade.stoploss) {
-//             hitType = 'stoploss';
-//             profitLoss = trade.entry - price; // For sell, loss if price goes up
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         }
-//     }
-
-//     if (hitType) {
-//         return {
-//             type: hitType,
-//             profitLoss: profitLoss,
-//             profitLossPercent: profitLossPercent,
-//             exitPrice: price
-//         };
-//     }
-//     return false;
-// }
-
-
-// async function checkSymbol(symbol, mlModels, mlTrainingData) {
-//     const candles = await fetchKlines(symbol, INTERVAL);
-//     const price = await fetchCurrentPrice(symbol);
-//     if (!candles || !price) return;
-
-//     const analysis = analyzeData(candles, mlTrainingData);
-//     if (!analysis) return;
-
-//     // If ML models not trained yet and enough training data, train models
-//     if (!mlModels.targetModel && mlTrainingData.atr.length >= 30) {
-//         const models = trainMLModel(mlTrainingData.atr, mlTrainingData.price, mlTrainingData.targets, mlTrainingData.stoplosses);
-//         mlModels.targetModel = models.targetModel;
-//         mlModels.stoplossModel = models.stoplossModel;
-//         console.log("ML Models trained!");
-//     }
-
-//     console.log(`Analysis for ${symbol} @ ${new Date(candles.at(-1).time).toLocaleString()}: Signal=${analysis.signal}, Price=${price.toFixed(2)}`);
-
-//     for (const chatId of USER_CHAT_IDS) {
-//         if (!userStatus[chatId]) { // Check if user wants to receive signals
-//             continue; // Skip if user is inactive
-//         }
-
-//         if (!activeTrades[chatId]) activeTrades[chatId] = {};
-//         if (!lastSignalSent[chatId]) lastSignalSent[chatId] = {};
-
-//         const trade = activeTrades[chatId][symbol];
-
-//         if (trade && trade.status === 'active') {
-//             const hitResult = checkIfHit(price, trade);
-//             if (hitResult) {
-//                 const { type, profitLoss, profitLossPercent, exitPrice } = hitResult;
-//                 const profitLossEmoji = profitLoss >= 0 ? '🟢' : '🔴';
-//                 const tradeDuration = new Date(Date.now() - trade.entryTime).toISOString().slice(11, 19); // HH:MM:SS format
-
-//                 const summaryMessage = `📈 *${symbol} ${trade.signal} Trade Closed!* ${profitLossEmoji}
-// ---------------------------------------------
-// *Entry Price:* ${trade.entry.toFixed(2)}
-// *Exit Price:* ${exitPrice.toFixed(2)}
-// *Outcome:* ${type.toUpperCase()}
-// *P&L:* ${profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} (${profitLossPercent.toFixed(2)}%)
-// *Duration:* ${tradeDuration}
-// ---------------------------------------------
-// `;
-//                 await bot.sendMessage(chatId, summaryMessage, { parse_mode: 'Markdown' });
-//                 trade.status = 'closed';
-//                 delete activeTrades[chatId][symbol];
-//                 lastSignalSent[chatId][symbol] = null;
-//             }
-//             continue;
-//         }
-
-//         if (analysis.signal !== 'HOLD' && !activeTrades[chatId][symbol]) {
-//             // Use ML to calculate target/stoploss if models available
-//             const { target, stoploss } = calculateTargetsML(analysis.signal, price, analysis.lastAtr, mlModels);
-
-//             await bot.sendMessage(chatId, `📊 *${symbol}* Signal: *${analysis.signal}*
-// 💰 Entry: ${price.toFixed(2)}
-// 🎯 Target: ${target.toFixed(2)}
-// 🛑 Stoploss: ${stoploss.toFixed(2)}
-// 📉 RSI: ${analysis.lastRsi.toFixed(2)} | EMA: ${analysis.lastEma.toFixed(2)}
-// 📈 MACD: ${analysis.lastMacd.MACD.toFixed(2)} / ${analysis.lastMacd.signal.toFixed(2)}
-// 📊 Volume: ${analysis.lastVolume.toFixed(0)} / SMA: ${analysis.lastVolumeSMA.toFixed(0)}`, { parse_mode: 'Markdown' });
-
-//             activeTrades[chatId][symbol] = {
-//                 signal: analysis.signal,
-//                 entry: price,
-//                 target,
-//                 stoploss,
-//                 atr: analysis.lastAtr,
-//                 status: 'active',
-//                 entryTime: Date.now() // Record entry time
-//             };
-//             lastSignalSent[chatId][symbol] = analysis.signal;
-//         } else if (analysis.signal === 'HOLD' && lastSignalSent[chatId][symbol] !== 'HOLD') {
-//             // This message should only be sent if no active trade for this symbol
-//             if (!activeTrades[chatId][symbol]) {
-//                  await bot.sendMessage(chatId, `ℹ️ *${symbol}* Signal: *HOLD*`, { parse_mode: 'Markdown' });
-//                  lastSignalSent[chatId][symbol] = 'HOLD';
-//             }
-//         }
-//     }
-// }
-
-// // Bot command handlers
-
-// // Command to show active trades with status buttons
-// bot.onText(/\/status/, (msg) => { // Changed from /status to /trades to avoid conflict
-//     const chatId = msg.chat.id;
-//     if (!activeTrades[chatId] || Object.keys(activeTrades[chatId]).length === 0) {
-//         bot.sendMessage(chatId, "Aapke paas koi active trade nahi hai.");
-//         return;
-//     }
-
-//     const trades = activeTrades[chatId];
-//     const buttons = Object.entries(trades).map(([symbol, trade]) => {
-//         return [{ text: `${symbol} - ${trade.status}`, callback_data: `trade_status_${symbol}` }];
-//     });
-
-//     bot.sendMessage(chatId, "Aapke active trades status:", {
-//         reply_markup: {
-//             inline_keyboard: buttons
-//         }
-//     });
-// });
-
-// // Handle callback button presses for trade status
-// bot.on('callback_query', async (callbackQuery) => {
-//     const msg = callbackQuery.message;
-//     const chatId = msg.chat.id;
-//     const data = callbackQuery.data;
-
-//     if (data.startsWith('trade_status_')) {
-//         const symbol = data.split('_')[2];
-//         const trade = activeTrades[chatId] ? activeTrades[chatId][symbol] : null;
-
-//         if (!trade) {
-//             await bot.answerCallbackQuery(callbackQuery.id, { text: "Trade mil nahi raha." });
-//             return;
-//         }
-
-//         const statusMsg = `Trade status for *${symbol}*:\nSignal: ${trade.signal}\nEntry: ${trade.entry.toFixed(2)}\nTarget: ${trade.target.toFixed(2)}\nStoploss: ${trade.stoploss.toFixed(2)}\nStatus: ${trade.status}`;
-//         await bot.sendMessage(chatId, statusMsg, { parse_mode: 'Markdown' });
-//         await bot.answerCallbackQuery(callbackQuery.id);
-//     } else if (data === 'toggle_status') {
-//         userStatus[chatId] = !userStatus[chatId];
-//         await bot.answerCallbackQuery(callbackQuery.id, { text: `Signals ${userStatus[chatId] ? 'activated' : 'deactivated'}.` });
-//         const buttonLabel = userStatus[chatId] ? "🟢 Active" : "🔴 Inactive";
-//         await bot.editMessageText(`Your signal status is: *${buttonLabel}*`, {
-//             chat_id: chatId,
-//             message_id: msg.message_id,
-//             parse_mode: 'Markdown',
-//             reply_markup: {
-//                 inline_keyboard: [
-//                     [{ text: userStatus[chatId] ? "Deactivate" : "Activate", callback_data: 'toggle_status' }]
-//                 ]
-//             }
-//         });
-//     }
-// });
-
-
-// bot.onText(/\/status/, (msg) => {
-//     const chatId = msg.chat.id;
-//     const isActive = userStatus[chatId] ?? false; // Default to false if not set
-//     const buttonLabel = isActive ? "🟢 Active" : "🔴 Inactive";
-
-//     bot.sendMessage(chatId, `Your signal status is: *${buttonLabel}*`, {
-//         parse_mode: 'Markdown',
-//         reply_markup: {
-//             inline_keyboard: [
-//                 [{ text: isActive ? "Deactivate" : "Activate", callback_data: 'toggle_status' }]
-//             ]
-//         }
-//     });
-// });
-
-// bot.onText(/\/start/, (msg) => {
-//     const chatId = msg.chat.id;
-//     if (!USER_CHAT_IDS.includes(chatId)) {
-//         USER_CHAT_IDS.push(chatId);
-//         saveUserChatIds();
-//     }
-//     userStatus[chatId] = true; // Activate signals for new users by default
-//     bot.sendMessage(chatId, "Welcome to the Crypto Trading Signal Bot! You will receive signals for selected symbols. Use /status to manage signals.");
-// });
-
-// // Periodic check every 15 minutes
-// async function mainLoop() {
-//     const mlTrainingData = { atr: [], price: [], targets: [], stoplosses: [] };
-//     const mlModels = { targetModel: null, stoplossModel: null };
-
-//     while (true) {
-//         console.log("Starting new analysis cycle...");
-
-//         for (const symbol of SYMBOLS) {
-//             console.log(`Checking symbol: ${symbol}`);
-//             await checkSymbol(symbol, mlModels, mlTrainingData);
-
-//             console.log(`Sleeping 1 minute before next symbol...`);
-//             await new Promise(r => setTimeout(r, 60 * 1000));  // 1 minute delay
-//         }
-
-//         console.log("Cycle done, restarting symbols...");
-//     }
-// }
-
-// loadUserChatIds();
-// // Initialize userStatus for existing users, assuming they are active by default
-// USER_CHAT_IDS.forEach(id => {
-//     if (userStatus[id] === undefined) {
-//         userStatus[id] = true;
-//     }
-// });
-// mainLoop();
-
-
-
-
-
-
-
-
-
-// require('dotenv').config();
-// const axios = require('axios');
-// const fs = require('fs');
-// const TelegramBot = require('node-telegram-bot-api');
-// const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
-// const MLR = require('ml-regression').MultivariateLinearRegression;
-
-// // Config
-// const INTERVAL = "1h"; // single interval for simplicity
-// const SYMBOLS = [
-//     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", // Added USDT suffix for Binance compatibility
-//     "ADAUSDT", "DOGEUSDT", "SHIBUSDT", "DOTUSDT", "LINKUSDT",
-//     "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT",
-//     "XLMUSDT", "UNIUSDT", "AVAXUSDT", "NEARUSDT", "ICPUSDT",
-//     "APTUSDT", "ATOMUSDT", "OPUSDT", "ARBUSDT", "FILUSDT",
-//     "IMXUSDT", "EGLDUSDT", "SUIUSDT", "GRTUSDT", "SANDUSDT",
-//     "MANAUSDT", "AAVEUSDT", "MKRUSDT", "LDOUSDT", "QNTUSDT",
-//     "CRVUSDT", "COMPUSDT", "SNXUSDT", "ZECUSDT", "DASHUSDT",
-//     "EOSUSDT", "XTZUSDT", "VETUSDT", "THETAUSDT", "FTMUSDT",
-//     "KSMUSDT", "CHZUSDT", "FLOWUSDT", "GMXUSDT", "DYDXUSDT"
-// ];
-// const VOLUME_SMA_PERIOD = 20;
-// const USER_IDS_FILE = './user_chat_ids.json';
-
-// const botToken = process.env.BOT_TOKEN || '7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY'; // .env से टोकन लेने का तरीका
-// const bot = new TelegramBot(botToken, { polling: true });
-
-// let USER_CHAT_IDS = [];
-// let activeTrades = {};
-// let lastSignalSent = {};
-// let userStatus = {}; // Added to manage user active/inactive status
-
-// // Load users
-// function loadUserChatIds() {
-//     if (fs.existsSync(USER_IDS_FILE)) {
-//         USER_CHAT_IDS = JSON.parse(fs.readFileSync(USER_IDS_FILE));
-//     }
-// }
-// function saveUserChatIds() {
-//     fs.writeFileSync(USER_IDS_FILE, JSON.stringify(USER_CHAT_IDS));
-// }
-
-// // Fetch candle data
-// async function fetchKlines(symbol, interval, limit = 100) {
-//     try {
-//         const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-//         const res = await axios.get(url);
-//         return res.data.map(c => ({
-//             open: parseFloat(c[1]),
-//             high: parseFloat(c[2]),
-//             low: parseFloat(c[3]),
-//             close: parseFloat(c[4]),
-//             volume: parseFloat(c[5]),
-//             time: c[0]
-//         }));
-//     } catch (e) {
-//         console.error("Kline fetch error for", symbol, e.message);
-//         return null;
-//     }
-// }
-
-// // Fetch current price
-// async function fetchCurrentPrice(symbol) {
-//     try {
-//         const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
-//         const res = await axios.get(url);
-//         return parseFloat(res.data.price);
-//     } catch (e) {
-//         console.error("Price fetch error for", symbol, e.message);
-//         return null;
-//     }
-// }
-
-// // ML model for target/stoploss multipliers
-// function trainMLModel(atrArray, priceArray, targets, stoplosses) {
-//     // Input features: ATR and price
-//     // Output: target multiplier and stoploss multiplier
-//     const inputs = atrArray.map((atr, i) => [atr, priceArray[i]]);
-//     const targetMultipliers = targets.map((target, i) => (target - priceArray[i]) / atrArray[i]);
-//     const stoplossMultipliers = stoplosses.map((sl, i) => Math.abs(sl - priceArray[i]) / atrArray[i]);
-
-//     const targetModel = new MLR(inputs, targetMultipliers);
-//     const stoplossModel = new MLR(inputs, stoplossMultipliers);
-
-//     return { targetModel, stoplossModel };
-// }
-
-// // Predict multipliers using ML model
-// function predictMultipliers(atr, price, targetModel, stoplossModel) {
-//     const input = [atr, price];
-//     let targetMultiplier = targetModel.predict(input);
-//     let stoplossMultiplier = stoplossModel.predict(input);
-
-//     // Clamp reasonable ranges
-//     if (targetMultiplier < 0.5) targetMultiplier = 0.5;
-//     if (targetMultiplier > 3) targetMultiplier = 3;
-//     if (stoplossMultiplier < 0.3) stoplossMultiplier = 0.3;
-//     if (stoplossMultiplier > 2) stoplossMultiplier = 2;
-
-//     return { targetMultiplier, stoplossMultiplier };
-// }
-
-// // Calculate targets based on ML-predicted multipliers
-// function calculateTargetsML(signal, price, atr, mlModels) {
-//     let { targetModel, stoplossModel } = mlModels;
-
-//     if (!targetModel || !stoplossModel) {
-//         // Fallback fixed multipliers if no ML model yet
-//         return calculateTargetsATRBasedFallback(signal, price, atr);
-//     }
-
-//     const { targetMultiplier, stoplossMultiplier } = predictMultipliers(atr, price, targetModel, stoplossModel);
-
-//     let target, stoploss;
-//     if (signal === 'BUY') {
-//         target = price + targetMultiplier * atr;
-//         stoploss = price - stoplossMultiplier * atr;
-//     } else {
-//         target = price - targetMultiplier * atr;
-//         stoploss = price + stoplossMultiplier * atr;
-//     }
-//     return { target, stoploss };
-// }
-
-// // Fallback function with your original logic (for when ML model not ready)
-// function calculateTargetsATRBasedFallback(signal, price, atr) {
-//     const atrPercent = (atr / price) * 100;
-//     let targetMultiplier = 1.5;
-//     let stoplossMultiplier = 1.0;
-
-//     if (atrPercent < 0.5) {
-//         targetMultiplier = 2.0;
-//         stoplossMultiplier = 0.7;
-//     } else if (atrPercent > 2.0) {
-//         targetMultiplier = 1.2;
-//         stoplossMultiplier = 1.5;
-//     }
-
-//     let target, stoploss;
-//     if (signal === 'BUY') {
-//         target = price + targetMultiplier * atr;
-//         stoploss = price - stoplossMultiplier * atr;
-//     } else {
-//         target = price - targetMultiplier * atr;
-//         stoploss = price + stoplossMultiplier * atr;
-//     }
-//     return { target, stoploss };
-// }
-
-// // Analyze candles for signals and build ML training data
-// function analyzeData(candles, mlTrainingData) {
-//     const closes = candles.map(c => c.close);
-//     const highs = candles.map(c => c.high);
-//     const lows = candles.map(c => c.low);
-//     const volumes = candles.map(c => c.volume);
-
-//     const rsi = RSI.calculate({ values: closes, period: 14 });
-//     const ema = EMA.calculate({ values: closes, period: 14 });
-//     const macd = MACD.calculate({
-//         values: closes,
-//         fastPeriod: 12,
-//         slowPeriod: 26,
-//         signalPeriod: 9,
-//         SimpleMAOscillator: false,
-//         SimpleMASignal: false
-//     });
-//     const atr = ATR.calculate({ high: highs, low: lows, close: closes, period: 14 });
-//     const volumeSMA = SMA.calculate({ values: volumes, period: VOLUME_SMA_PERIOD });
-
-//     const lastClose = closes.at(-1);
-//     const lastEma = ema.at(-1);
-//     const lastMacd = macd.at(-1);
-//     const lastRsi = rsi.at(-1);
-//     const lastAtr = atr.at(-1);
-//     const lastVolume = volumes.at(-1);
-//     const lastVolumeSMA = volumeSMA.at(-1);
-
-//     let signal = 'HOLD';
-//     const volumeOkay = lastVolume > (0.8 * lastVolumeSMA);
-
-//     if (volumeOkay && lastClose > lastEma && lastMacd.MACD > lastMacd.signal && lastRsi > 50) {
-//         signal = 'BUY';
-//     } else if (volumeOkay && lastClose < lastEma && lastMacd.MACD < lastMacd.signal && lastRsi < 50) {
-//         signal = 'SELL';
-//     }
-
-//     let target = null, stoploss = null;
-//     if (signal !== 'HOLD') {
-//         // We will not calculate targets here, will do it in main logic with ML models
-//         // But collect training data for ML model if possible
-//         if (mlTrainingData) {
-//             // For simplicity, pretend actual targets & stoplosses = lastClose +/- 1.5*ATR (you can improve this with real historical hits)
-//             const actualTarget = signal === 'BUY' ? lastClose + 1.5 * lastAtr : lastClose - 1.5 * lastAtr;
-//             const actualStoploss = signal === 'BUY' ? lastClose - 1.0 * lastAtr : lastClose + 1.0 * lastAtr;
-//             mlTrainingData.atr.push(lastAtr);
-//             mlTrainingData.price.push(lastClose);
-//             mlTrainingData.targets.push(actualTarget);
-//             mlTrainingData.stoplosses.push(actualStoploss);
-//         }
-//     }
-
-//     return { signal, lastClose, lastRsi, lastEma, lastMacd, lastVolume, lastVolumeSMA, lastAtr };
-// }
-
-// // Updated checkIfHit function to return summary data
-// function checkIfHit(price, trade) {
-//     if (!trade) return false;
-
-//     let hitType = false;
-//     let profitLoss = 0;
-//     let profitLossPercent = 0;
-
-//     if (trade.signal === 'BUY') {
-//         if (price >= trade.target) {
-//             hitType = 'target';
-//             profitLoss = price - trade.entry;
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         } else if (price <= trade.stoploss) {
-//             hitType = 'stoploss';
-//             profitLoss = price - trade.entry;
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         }
-//     } else { // SELL signal
-//         if (price <= trade.target) {
-//             hitType = 'target';
-//             profitLoss = trade.entry - price; // For sell, profit if price goes down
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         } else if (price >= trade.stoploss) {
-//             hitType = 'stoploss';
-//             profitLoss = trade.entry - price; // For sell, loss if price goes up
-//             profitLossPercent = (profitLoss / trade.entry) * 100;
-//         }
-//     }
-
-//     if (hitType) {
-//         return {
-//             type: hitType,
-//             profitLoss: profitLoss,
-//             profitLossPercent: profitLossPercent,
-//             exitPrice: price
-//         };
-//     }
-//     return false;
-// }
-
-
-// async function checkSymbol(symbol, mlModels, mlTrainingData) {
-//     const candles = await fetchKlines(symbol, INTERVAL);
-//     const price = await fetchCurrentPrice(symbol);
-//     if (!candles || !price) return;
-
-//     const analysis = analyzeData(candles, mlTrainingData);
-//     if (!analysis) return;
-
-//     // If ML models not trained yet and enough training data, train models
-//     if (!mlModels.targetModel && mlTrainingData.atr.length >= 30) {
-//         const models = trainMLModel(mlTrainingData.atr, mlTrainingData.price, mlTrainingData.targets, mlTrainingData.stoplosses);
-//         mlModels.targetModel = models.targetModel;
-//         mlModels.stoplossModel = models.stoplossModel;
-//         console.log("ML Models trained!");
-//     }
-
-//     console.log(`Analysis for ${symbol} @ ${new Date(candles.at(-1).time).toLocaleString()}: Signal=${analysis.signal}, Price=${price.toFixed(2)}`);
-
-//     for (const chatId of USER_CHAT_IDS) {
-//         if (!userStatus[chatId]) { // Check if user wants to receive signals
-//             continue; // Skip if user is inactive
-//         }
-
-//         if (!activeTrades[chatId]) activeTrades[chatId] = {};
-//         if (!lastSignalSent[chatId]) lastSignalSent[chatId] = {};
-
-//         const trade = activeTrades[chatId][symbol];
-
-//         if (trade && trade.status === 'active') {
-//             const hitResult = checkIfHit(price, trade);
-//             if (hitResult) {
-//                 const { type, profitLoss, profitLossPercent, exitPrice } = hitResult;
-//                 const profitLossEmoji = profitLoss >= 0 ? '🟢' : '🔴';
-//                 const tradeDuration = new Date(Date.now() - trade.entryTime).toISOString().slice(11, 19); // HH:MM:SS format
-
-//                 const summaryMessage = `📈 *${symbol} ${trade.signal} Trade Closed!* ${profitLossEmoji}
-// ---------------------------------------------
-// *Entry Price:* ${trade.entry.toFixed(2)}
-// *Exit Price:* ${exitPrice.toFixed(2)}
-// *Outcome:* ${type.toUpperCase()}
-// *P&L:* ${profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} (${profitLossPercent.toFixed(2)}%)
-// *Duration:* ${tradeDuration}
-// ---------------------------------------------
-// `;
-//                 await bot.sendMessage(chatId, summaryMessage, { parse_mode: 'Markdown' });
-//                 trade.status = 'closed';
-//                 delete activeTrades[chatId][symbol];
-//                 lastSignalSent[chatId][symbol] = null;
-//             }
-//             continue;
-//         }
-
-//         if (analysis.signal !== 'HOLD' && !activeTrades[chatId][symbol]) {
-//             // Use ML to calculate target/stoploss if models available
-//             const { target, stoploss } = calculateTargetsML(analysis.signal, price, analysis.lastAtr, mlModels);
-
-//             await bot.sendMessage(chatId, `📊 *${symbol}* Signal: *${analysis.signal}*
-// 💰 Entry: ${price.toFixed(2)}
-// 🎯 Target: ${target.toFixed(2)}
-// 🛑 Stoploss: ${stoploss.toFixed(2)}
-// 📉 RSI: ${analysis.lastRsi.toFixed(2)} | EMA: ${analysis.lastEma.toFixed(2)}
-// 📈 MACD: ${analysis.lastMacd.MACD.toFixed(2)} / ${analysis.lastMacd.signal.toFixed(2)}
-// 📊 Volume: ${analysis.lastVolume.toFixed(0)} / SMA: ${analysis.lastVolumeSMA.toFixed(0)}`, { parse_mode: 'Markdown' });
-
-//             activeTrades[chatId][symbol] = {
-//                 signal: analysis.signal,
-//                 entry: price,
-//                 target,
-//                 stoploss,
-//                 atr: analysis.lastAtr,
-//                 status: 'active',
-//                 entryTime: Date.now() // Record entry time
-//             };
-//             lastSignalSent[chatId][symbol] = analysis.signal;
-//         } else if (analysis.signal === 'HOLD' && lastSignalSent[chatId][symbol] !== 'HOLD') {
-//             // This message should only be sent if no active trade for this symbol
-//             if (!activeTrades[chatId][symbol]) {
-//                  await bot.sendMessage(chatId, `ℹ️ *${symbol}* Signal: *HOLD*`, { parse_mode: 'Markdown' });
-//                  lastSignalSent[chatId][symbol] = 'HOLD';
-//             }
-//         }
-//     }
-// }
-
-// // Bot command handlers
-
-// // Command to show active trades with status buttons
-// bot.onText(/\/trades/, (msg) => { // Changed from /status to /trades to avoid conflict
-//     const chatId = msg.chat.id;
-//     if (!activeTrades[chatId] || Object.keys(activeTrades[chatId]).length === 0) {
-//         bot.sendMessage(chatId, "Aapke paas koi active trade nahi hai.");
-//         return;
-//     }
-
-//     const trades = activeTrades[chatId];
-//     const buttons = Object.entries(trades).map(([symbol, trade]) => {
-//         return [{ text: `${symbol} - ${trade.status}`, callback_data: `trade_status_${symbol}` }];
-//     });
-
-//     bot.sendMessage(chatId, "Aapke active trades status:", {
-//         reply_markup: {
-//             inline_keyboard: buttons
-//         }
-//     });
-// });
-
-// // Handle callback button presses for trade status
-// bot.on('callback_query', async (callbackQuery) => {
-//     const msg = callbackQuery.message;
-//     const chatId = msg.chat.id;
-//     const data = callbackQuery.data;
-
-//     if (data.startsWith('trade_status_')) {
-//         const symbol = data.split('_')[2];
-//         const trade = activeTrades[chatId] ? activeTrades[chatId][symbol] : null;
-
-//         if (!trade) {
-//             await bot.answerCallbackQuery(callbackQuery.id, { text: "Trade mil nahi raha." });
-//             return;
-//         }
-
-//         const statusMsg = `Trade status for *${symbol}*:\nSignal: ${trade.signal}\nEntry: ${trade.entry.toFixed(2)}\nTarget: ${trade.target.toFixed(2)}\nStoploss: ${trade.stoploss.toFixed(2)}\nStatus: ${trade.status}`;
-//         await bot.sendMessage(chatId, statusMsg, { parse_mode: 'Markdown' });
-//         await bot.answerCallbackQuery(callbackQuery.id);
-//     } else if (data === 'toggle_status') {
-//         userStatus[chatId] = !userStatus[chatId];
-//         await bot.answerCallbackQuery(callbackQuery.id, { text: `Signals ${userStatus[chatId] ? 'activated' : 'deactivated'}.` });
-//         const buttonLabel = userStatus[chatId] ? "🟢 Active" : "🔴 Inactive";
-//         await bot.editMessageText(`Your signal status is: *${buttonLabel}*`, {
-//             chat_id: chatId,
-//             message_id: msg.message_id,
-//             parse_mode: 'Markdown',
-//             reply_markup: {
-//                 inline_keyboard: [
-//                     [{ text: userStatus[chatId] ? "Deactivate" : "Activate", callback_data: 'toggle_status' }]
-//                 ]
-//             }
-//         });
-//     }
-// });
-
-
-// bot.onText(/\/status/, (msg) => {
-//     const chatId = msg.chat.id;
-//     const isActive = userStatus[chatId] ?? false; // Default to false if not set
-//     const buttonLabel = isActive ? "🟢 Active" : "🔴 Inactive";
-
-//     bot.sendMessage(chatId, `Your signal status is: *${buttonLabel}*`, {
-//         parse_mode: 'Markdown',
-//         reply_markup: {
-//             inline_keyboard: [
-//                 [{ text: isActive ? "Deactivate" : "Activate", callback_data: 'toggle_status' }]
-//             ]
-//         }
-//     });
-// });
-
-// bot.onText(/\/start/, (msg) => {
-//     const chatId = msg.chat.id;
-//     if (!USER_CHAT_IDS.includes(chatId)) {
-//         USER_CHAT_IDS.push(chatId);
-//         saveUserChatIds();
-//     }
-//     userStatus[chatId] = true; // Activate signals for new users by default
-//     bot.sendMessage(chatId, "Welcome to the Crypto Trading Signal Bot! You will receive signals for selected symbols. Use /status to manage signals and /trades to view active trades.");
-// });
-
-// // Periodic check every 15 minutes
-// async function mainLoop() {
-//     const mlTrainingData = { atr: [], price: [], targets: [], stoplosses: [] };
-//     const mlModels = { targetModel: null, stoplossModel: null };
-
-//     while (true) {
-//         console.log("Starting new analysis cycle...");
-
-//         for (const symbol of SYMBOLS) {
-//             console.log(`Checking symbol: ${symbol}`);
-//             await checkSymbol(symbol, mlModels, mlTrainingData);
-
-//             console.log(`Sleeping 1 minute before next symbol...`);
-//             await new Promise(r => setTimeout(r, 60 * 1000));  // 1 minute delay
-//         }
-
-//         console.log("Cycle done, restarting symbols...");
-//     }
-// }
-
-// loadUserChatIds();
-// // Initialize userStatus for existing users, assuming they are active by default
-// USER_CHAT_IDS.forEach(id => {
-//     if (userStatus[id] === undefined) {
-//         userStatus[id] = true;
-//     }
-// });
-// mainLoop();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-require('dotenv').config();
+// require('dotenv').config(); // अगर आप .env फ़ाइल का उपयोग कर रहे हैं तो इस लाइन को अनकमेंट करें
 const axios = require('axios');
 const fs = require('fs');
 const TelegramBot = require('node-telegram-bot-api');
 const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
 const MLR = require('ml-regression').MultivariateLinearRegression;
 
-// Config
-const INTERVAL = "1h"; // single interval for simplicity
-const SYMBOLS = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", // Added USDT suffix for Binance compatibility
-    "ADAUSDT", "DOGEUSDT", "SHIBUSDT", "DOTUSDT", "LINKUSDT",
-    "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT",
-    "XLMUSDT", "UNIUSDT", "AVAXUSDT", "NEARUSDT", "ICPUSDT",
-    "APTUSDT", "ATOMUSDT", "OPUSDT", "ARBUSDT", "FILUSDT",
-    "IMXUSDT", "EGLDUSDT", "SUIUSDT", "GRTUSDT", "SANDUSDT",
-    "MANAUSDT", "AAVEUSDT", "MKRUSDT", "LDOUSDT", "QNTUSDT",
-    "CRVUSDT", "COMPUSDT", "SNXUSDT", "ZECUSDT", "DASHUSDT",
-    "EOSUSDT", "XTZUSDT", "VETUSDT", "THETAUSDT", "FTMUSDT",
-    "KSMUSDT", "CHZUSDT", "FLOWUSDT", "GMXUSDT", "DYDXUSDT"
-];
-const VOLUME_SMA_PERIOD = 20;
-const USER_IDS_FILE = './user_chat_ids.json';
+// --- कॉन्फ़िगरेशन ---
+const INTERVAL = "1m"; // सिंगल इंटरवल
 
-const botToken = process.env.BOT_TOKEN || '7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY'; // .env से टोकन लेने का तरीका
+// केवल एक सिंबल को ट्रैक करने के लिए
+const SINGLE_SYMBOL_TO_TRACK = 'BTCUSDT'; // <<--- यहाँ उस सिंबल का नाम डालें जिसे आप ट्रैक करना चाहते हैं
+
+const VOLUME_SMA_PERIOD = 20;
+
+const USER_IDS_FILE = './data/user_chat_ids.json'; // उपयोगकर्ता ID संग्रहीत करें
+const USER_STATUS_FILE = './data/user_status.json'; // उपयोगकर्ता सक्रियण स्थिति संग्रहीत करें
+
+// Telegram Bot Token - प्रोडक्शन के लिए पर्यावरण चर को प्राथमिकता दें
+const botToken = process.env.TELEGRAM_BOT_TOKEN || '8003756443:AAHOP678U2KdAiTuVYQZVQ2DsYnT2Oq4PnE';
 const bot = new TelegramBot(botToken, { polling: true });
 
-let USER_CHAT_IDS = [];
-let activeTrades = {};
-let lastSignalSent = {};
-let userStatus = {}; // Added to manage user active/inactive status
+let USER_CHAT_IDS = []; // सिग्नल भेजने के लिए चैट IDs की सूची
+let userStatus = {};    // { chatId: true/false } सक्रिय/निष्क्रिय के लिए
+let activeTrades = {};  // { chatId: { symbol: { signal, entry, target, stoploss, atr, status } } }
+let lastSignalSent = {};// { chatId: { symbol: 'BUY'/'SELL'/'HOLD' } }
 
-// Load users
+// ML मॉडल स्टोरेज (गतिशील रूप से प्रशिक्षित किया जाएगा)
+let mlModels = { targetModel: null, stoplossModel: null };
+let mlTrainingData = { atr: [], price: [], targets: [], stoplosses: [] };
+
+
+// --- डेटा परसिस्टेंस के लिए सहायक फ़ंक्शन ---
 function loadUserChatIds() {
-    if (fs.existsSync(USER_IDS_FILE)) {
-        USER_CHAT_IDS = JSON.parse(fs.readFileSync(USER_IDS_FILE));
+    try {
+        if (fs.existsSync(USER_IDS_FILE)) {
+            USER_CHAT_IDS = JSON.parse(fs.readFileSync(USER_IDS_FILE));
+            console.log(`लोड किए गए ${USER_CHAT_IDS.length} उपयोगकर्ता चैट ID.`);
+        }
+    } catch (e) {
+        console.error("उपयोगकर्ता चैट ID लोड करने में त्रुटि:", e.message);
     }
 }
+
 function saveUserChatIds() {
-    fs.writeFileSync(USER_IDS_FILE, JSON.stringify(USER_CHAT_IDS));
+    try {
+        fs.writeFileSync(USER_IDS_FILE, JSON.stringify(USER_CHAT_IDS, null, 2));
+        console.log("उपयोगकर्ता चैट ID सहेजे गए.");
+    } catch (e) {
+        console.error("उपयोगकर्ता चैट ID सहेजने में त्रुटि:", e.message);
+    }
 }
 
-// Fetch candle data
+function loadUserStatus() {
+    try {
+        if (fs.existsSync(USER_STATUS_FILE)) {
+            userStatus = JSON.parse(fs.readFileSync(USER_STATUS_FILE));
+            console.log("उपयोगकर्ता स्थितियाँ लोड की गईं.");
+        }
+    } catch (e) {
+        console.error("उपयोगकर्ता स्थितियाँ लोड करने में त्रुटि:", e.message);
+    }
+}
+
+function saveUserStatus() {
+    try {
+        fs.writeFileSync(USER_STATUS_FILE, JSON.stringify(userStatus, null, 2));
+        console.log("उपयोगकर्ता स्थितियाँ सहेजी गईं.");
+    } catch (e) {
+        console.error("उपयोगकर्ता स्थितियाँ सहेजने में त्रुटि:", e.message);
+    }
+}
+
+// --- डेटा फ़ेचिंग फ़ंक्शन ---
 async function fetchKlines(symbol, interval, limit = 100) {
     try {
         const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
@@ -959,108 +85,129 @@ async function fetchKlines(symbol, interval, limit = 100) {
             time: c[0]
         }));
     } catch (e) {
-        console.error("Kline fetch error for", symbol, e.message);
+        console.error(`${symbol} के लिए Kline फ़ेच करने में त्रुटि:`, e.message);
         return null;
     }
 }
 
-// Fetch current price
 async function fetchCurrentPrice(symbol) {
     try {
         const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
         const res = await axios.get(url);
         return parseFloat(res.data.price);
     } catch (e) {
-        console.error("Price fetch error for", symbol, e.message);
+        console.error(`${symbol} के लिए मूल्य फ़ेच करने में त्रुटि:`, e.message);
         return null;
     }
 }
 
-// ML model for target/stoploss multipliers
-function trainMLModel(atrArray, priceArray, targets, stoplosses) {
-    // Input features: ATR and price
-    // Output: target multiplier and stoploss multiplier
-    const inputs = atrArray.map((atr, i) => [atr, priceArray[i]]);
-    const targetMultipliers = targets.map((target, i) => (target - priceArray[i]) / atrArray[i]);
-    const stoplossMultipliers = stoplosses.map((sl, i) => Math.abs(sl - priceArray[i]) / atrArray[i]);
-
-    const targetModel = new MLR(inputs, targetMultipliers);
-    const stoplossModel = new MLR(inputs, stoplossMultipliers);
-
-    return { targetModel, stoplossModel };
+// --- ML मॉडल प्रशिक्षण और भविष्यवाणी ---
+// शुरू करने के लिए डमी प्रशिक्षण डेटा, इसे वास्तविक ऐतिहासिक परिणामों से बदलें।
+// एक वास्तविक ML मॉडल के लिए, आपको ऐतिहासिक व्यापार परिणामों (एंट्री, एग्जिट, वास्तविक P/L)
+// और एंट्री के समय संबंधित ATR/मूल्य की आवश्यकता होगी।
+// यह प्रदर्शन उद्देश्यों के लिए एक प्लेसहोल्डर है।
+function initializeMLTrainingData() {
+    // उदाहरण: प्रत्येक सिग्नल के लिए, यदि लक्ष्य 1.5xATR पर हिट हुआ और स्टॉपलॉस 1.0xATR पर
+    // यह भाग प्रारंभिक प्रशिक्षण के लिए एक निश्चित रणनीति मानता है, जिसे आप
+    // वास्तविक ऐतिहासिक व्यापार परिणामों (जहां सिग्नल दिया गया था, और क्या परिणाम था) से बदलेंगे।
+    if (mlTrainingData.atr.length < 50) { // ML के लिए कुछ प्रारंभिक डेटा सुनिश्चित करें
+        for (let i = 0; i < 50; i++) {
+            const randomAtr = Math.random() * 0.5 + 0.1; // 0.1 से 0.6
+            const randomPrice = Math.random() * 1000 + 100; // 100 से 1100
+            mlTrainingData.atr.push(randomAtr);
+            mlTrainingData.price.push(randomPrice);
+            // सिमुलेटेड अच्छे ऐतिहासिक परिणाम: लक्ष्य 2x ATR, स्टॉपलॉस 0.8x ATR
+            mlTrainingData.targets.push(randomPrice + randomAtr * 2.0);
+            mlTrainingData.stoplosses.push(randomPrice - randomAtr * 0.8);
+        }
+    }
 }
 
-// Predict multipliers using ML model
-function predictMultipliers(atr, price, targetModel, stoplossModel) {
-    const input = [atr, price];
-    let targetMultiplier = targetModel.predict(input);
-    let stoplossMultiplier = stoplossModel.predict(input);
 
-    // Clamp reasonable ranges
-    if (targetMultiplier < 0.5) targetMultiplier = 0.5;
-    if (targetMultiplier > 3) targetMultiplier = 3;
-    if (stoplossMultiplier < 0.3) stoplossMultiplier = 0.3;
-    if (stoplossMultiplier > 2) stoplossMultiplier = 2;
+function trainMLModel(atrArray, priceArray, targets, stoplosses) {
+    console.log("ML मॉडल को प्रशिक्षित किया जा रहा है", atrArray.length, "डेटा बिंदुओं के साथ...");
+    // इनपुट विशेषताएँ: सिग्नल के समय ATR और मूल्य
+    // आउटपुट: इष्टतम लक्ष्य और स्टॉपलॉस मल्टीप्लायर
+    const inputs = atrArray.map((atr, i) => [atr, priceArray[i]]);
+    // ऐतिहासिक डेटा से वास्तविक मल्टीप्लायरों की गणना करें
+    const historicalTargetMultipliers = targets.map((target, i) => Math.abs(target - priceArray[i]) / atrArray[i]);
+    const historicalStoplossMultipliers = stoplosses.map((sl, i) => Math.abs(sl - priceArray[i]) / atrArray[i]);
+
+    try {
+        const targetModel = new MLR(inputs, historicalTargetMultipliers);
+        const stoplossModel = new MLR(inputs, historicalStoplossMultipliers);
+        console.log("ML मॉडल प्रशिक्षण पूरा हुआ.");
+        return { targetModel, stoplossModel };
+    } catch (e) {
+        console.error("ML मॉडल प्रशिक्षित करने में त्रुटि:", e.message);
+        return { targetModel: null, stoplossModel: null };
+    }
+}
+
+function predictMultipliers(atr, price) {
+    if (!mlModels.targetModel || !mlModels.stoplossModel) {
+        // यदि मॉडल प्रशिक्षित नहीं हैं तो डिफ़ॉल्ट पर वापस जाएं
+        return { targetMultiplier: 2.0, stoplossMultiplier: 0.8 }; // डिफ़ॉल्ट अच्छा अनुपात
+    }
+
+    const input = [atr, price];
+    let targetMultiplier = mlModels.targetModel.predict(input);
+    let stoplossMultiplier = mlModels.stoplossModel.predict(input);
+
+    // अत्यधिक भविष्यवाणियों को रोकने के लिए उचित श्रेणियों में क्लैंप करें
+    // अच्छे जोखिम-इनाम के लिए लक्ष्य > स्टॉपलॉस मल्टीप्लायर का लक्ष्य रखें
+    if (targetMultiplier < 0.8) targetMultiplier = 0.8; // न्यूनतम लक्ष्य मल्टीप्लायर
+    if (targetMultiplier > 3.0) targetMultiplier = 3.0; // अधिकतम लक्ष्य मल्टीप्लायर
+
+    if (stoplossMultiplier < 0.3) stoplossMultiplier = 0.3; // न्यूनतम स्टॉपलॉस मल्टीप्लायर (टाइट)
+    if (stoplossMultiplier > 1.5) stoplossMultiplier = 1.5; // अधिकतम स्टॉपलॉस मल्टीप्लायर (वाइडर)
+
+    // सुनिश्चित करें कि लक्ष्य मल्टीप्लायर सामान्यतः स्टॉपलॉस मल्टीप्लायर से अधिक हो
+    if (targetMultiplier <= stoplossMultiplier) {
+        targetMultiplier = stoplossMultiplier * 1.2; // सुनिश्चित करें कि लक्ष्य SL से कम से कम 20% अधिक हो
+        if (targetMultiplier > 3.0) targetMultiplier = 3.0;
+    }
+    
+    console.log(`ML अनुमानित: लक्ष्य मल्टीप्लायर=${targetMultiplier.toFixed(2)}, स्टॉपलॉस मल्टीप्लायर=${stoplossMultiplier.toFixed(2)} ATR=${atr.toFixed(2)}, मूल्य=${price.toFixed(2)} के लिए`);
 
     return { targetMultiplier, stoplossMultiplier };
 }
 
-// Calculate targets based on ML-predicted multipliers
-function calculateTargetsML(signal, price, atr, mlModels) {
-    let { targetModel, stoplossModel } = mlModels;
-
-    if (!targetModel || !stoplossModel) {
-        // Fallback fixed multipliers if no ML model yet
-        return calculateTargetsATRBasedFallback(signal, price, atr);
-    }
-
-    const { targetMultiplier, stoplossMultiplier } = predictMultipliers(atr, price, targetModel, stoplossModel);
+function calculateTargets(signal, price, atr) {
+    // ML-अनुमानित मल्टीप्लायरों का उपयोग करें
+    const { targetMultiplier, stoplossMultiplier } = predictMultipliers(atr, price);
 
     let target, stoploss;
     if (signal === 'BUY') {
         target = price + targetMultiplier * atr;
         stoploss = price - stoplossMultiplier * atr;
-    } else {
+    } else { // SELL
         target = price - targetMultiplier * atr;
         stoploss = price + stoplossMultiplier * atr;
     }
     return { target, stoploss };
 }
 
-// Fallback function with your original logic (for when ML model not ready)
-function calculateTargetsATRBasedFallback(signal, price, atr) {
-    const atrPercent = (atr / price) * 100;
-    let targetMultiplier = 1.5;
-    let stoplossMultiplier = 1.0;
-
-    if (atrPercent < 0.5) {
-        targetMultiplier = 2.0;
-        stoplossMultiplier = 0.7;
-    } else if (atrPercent > 2.0) {
-        targetMultiplier = 1.2;
-        stoplossMultiplier = 1.5;
+// --- सिग्नल विश्लेषण ---
+function analyzeData(candles) {
+    if (!candles || candles.length < 100) { // संकेतकों के लिए पर्याप्त मोमबत्तियाँ सुनिश्चित करें
+        console.warn("विश्लेषण के लिए पर्याप्त मोमबत्तियाँ नहीं हैं.");
+        return null;
     }
 
-    let target, stoploss;
-    if (signal === 'BUY') {
-        target = price + targetMultiplier * atr;
-        stoploss = price - stoplossMultiplier * atr;
-    } else {
-        target = price - targetMultiplier * atr;
-        stoploss = price + stoplossMultiplier * atr;
-    }
-    return { target, stoploss };
-}
-
-// Analyze candles for signals and build ML training data
-function analyzeData(candles, mlTrainingData) {
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
     const volumes = candles.map(c => c.volume);
 
+    // संकेतकों के लिए पर्याप्त डेटा सुनिश्चित करें
+    if (closes.length < 26 || highs.length < 26 || lows.length < 26) { // सबसे छोटी अवधि MACD/ATR के लिए है
+        console.warn("संकेतक गणना के लिए अपर्याप्त डेटा.");
+        return null;
+    }
+
     const rsi = RSI.calculate({ values: closes, period: 14 });
-    const ema = EMA.calculate({ values: closes, period: 14 });
+    const ema = EMA.calculate({ values: closes, period: 14 }); // EMA के लिए 14 मान रहे हैं
     const macd = MACD.calculate({
         values: closes,
         fastPeriod: 12,
@@ -1080,96 +227,106 @@ function analyzeData(candles, mlTrainingData) {
     const lastVolume = volumes.at(-1);
     const lastVolumeSMA = volumeSMA.at(-1);
 
-    let signal = 'HOLD';
-    const volumeOkay = lastVolume > (0.8 * lastVolumeSMA);
+    // सुनिश्चित करें कि सभी संकेतकों के अंतिम मान मान्य हैं
+    if (lastClose === undefined || lastEma === undefined || lastMacd === undefined || lastRsi === undefined ||
+        lastAtr === undefined || lastVolume === undefined || lastVolumeSMA === undefined ||
+        !lastMacd.MACD || !lastMacd.signal) {
+        console.warn("एक या अधिक संकेतक मान अपरिभाषित या शून्य हैं. विश्लेषण छोड़ रहे हैं.");
+        return null;
+    }
 
+    let signal = 'HOLD';
+    const volumeOkay = lastVolume > (0.8 * lastVolumeSMA); // वॉल्यूम की पुष्टि
+
+    // सिग्नल लॉजिक
+    // BUY: मूल्य > EMA, MACD क्रॉसओवर बुलिश, RSI > 50, अच्छा वॉल्यूम
     if (volumeOkay && lastClose > lastEma && lastMacd.MACD > lastMacd.signal && lastRsi > 50) {
         signal = 'BUY';
-    } else if (volumeOkay && lastClose < lastEma && lastMacd.MACD < lastMacd.signal && lastRsi < 50) {
+    }
+    // SELL: मूल्य < EMA, MACD क्रॉसओवर बेयरिश, RSI < 50, अच्छा वॉल्यूम
+    else if (volumeOkay && lastClose < lastEma && lastMacd.MACD < lastMacd.signal && lastRsi < 50) {
         signal = 'SELL';
     }
 
-    let target = null, stoploss = null;
-    if (signal !== 'HOLD') {
-        // We will not calculate targets here, will do it in main logic with ML models
-        // But collect training data for ML model if possible
-        if (mlTrainingData) {
-            // For simplicity, pretend actual targets & stoplosses = lastClose +/- 1.5*ATR (you can improve this with real historical hits)
-            const actualTarget = signal === 'BUY' ? lastClose + 1.5 * lastAtr : lastClose - 1.5 * lastAtr;
-            const actualStoploss = signal === 'BUY' ? lastClose - 1.0 * lastAtr : lastClose + 1.0 * lastAtr;
-            mlTrainingData.atr.push(lastAtr);
-            mlTrainingData.price.push(lastClose);
-            mlTrainingData.targets.push(actualTarget);
-            mlTrainingData.stoplosses.push(actualStoploss);
+    // ML प्रशिक्षण सेट में वर्तमान डेटा जोड़ें (निरंतर सीखने के लिए)
+    // तभी जोड़ें जब कोई सिग्नल उत्पन्न हुआ हो और हमारे पास वैध ATR/मूल्य हो
+    if (signal !== 'HOLD' && lastAtr && lastClose) {
+        // वास्तविक प्रशिक्षण के लिए, आप इस सिग्नल के परिणाम को ट्रैक करेंगे (यदि लक्ष्य हिट हुआ या स्टॉपलॉस हिट हुआ)
+        // और फिर उस वास्तविक परिणाम को mlTrainingData.targets/stoplosses में 'target' और 'stoploss' के रूप में उपयोग करेंगे।
+        // अभी के लिए, हम प्रशिक्षण के लिए एक नकली आदर्श परिणाम का उपयोग करेंगे।
+        const simulatedTarget = signal === 'BUY' ? lastClose + 2.0 * lastAtr : lastClose - 2.0 * lastAtr;
+        const simulatedStoploss = signal === 'BUY' ? lastClose - 0.8 * lastAtr : lastClose + 0.8 * lastAtr;
+
+        mlTrainingData.atr.push(lastAtr);
+        mlTrainingData.price.push(lastClose);
+        mlTrainingData.targets.push(simulatedTarget);
+        mlTrainingData.stoplosses.push(simulatedStoploss);
+
+        // मेमोरी समस्याओं को रोकने और मॉडल को प्रतिक्रियाशील रखने के लिए प्रशिक्षण डेटा आकार सीमित करें
+        const MAX_TRAINING_DATA = 500;
+        if (mlTrainingData.atr.length > MAX_TRAINING_DATA) {
+            mlTrainingData.atr.shift();
+            mlTrainingData.price.shift();
+            mlTrainingData.targets.shift();
+            mlTrainingData.stoplosses.shift();
         }
     }
+
+    // यदि पर्याप्त नया डेटा है तो ML मॉडल को फिर से प्रशिक्षित करें
+    if (mlModels.targetModel === null && mlTrainingData.atr.length >= 50) { // 50 डेटा बिंदुओं के बाद प्रारंभिक प्रशिक्षण
+        const trainedModels = trainMLModel(mlTrainingData.atr, mlTrainingData.price, mlTrainingData.targets, mlTrainingData.stoplosses);
+        mlModels.targetModel = trainedModels.targetModel;
+        mlModels.stoplossModel = trainedModels.stoplossModel;
+    } else if (mlTrainingData.atr.length % 20 === 0 && mlTrainingData.atr.length > 50) { // हर 20 नए डेटा बिंदुओं पर फिर से प्रशिक्षित करें
+        const trainedModels = trainMLModel(mlTrainingData.atr, mlTrainingData.price, mlTrainingData.targets, mlTrainingData.stoplosses);
+        mlModels.targetModel = trainedModels.targetModel;
+        mlModels.stoplossModel = trainedModels.stoplossModel;
+    }
+
 
     return { signal, lastClose, lastRsi, lastEma, lastMacd, lastVolume, lastVolumeSMA, lastAtr };
 }
 
-// Updated checkIfHit function to return summary data
-function checkIfHit(price, trade) {
-    if (!trade) return false;
+// जांचें कि क्या ट्रेड लक्ष्य या स्टॉपलॉस से टकराया है
+function checkIfHit(currentPrice, trade) {
+    if (!trade || trade.status !== 'active') return false;
 
-    let hitType = false;
-    let profitLoss = 0;
-    let profitLossPercent = 0;
+    // फ़्लोटिंग पॉइंट तुलनाओं के लिए एक छोटा सा सहिष्णुता का उपयोग करें
+    const tolerance = 0.000001;
 
     if (trade.signal === 'BUY') {
-        if (price >= trade.target) {
-            hitType = 'target';
-            profitLoss = price - trade.entry;
-            profitLossPercent = (profitLoss / trade.entry) * 100;
-        } else if (price <= trade.stoploss) {
-            hitType = 'stoploss';
-            profitLoss = price - trade.entry;
-            profitLossPercent = (profitLoss / trade.entry) * 100;
-        }
-    } else { // SELL signal
-        if (price <= trade.target) {
-            hitType = 'target';
-            profitLoss = trade.entry - price; // For sell, profit if price goes down
-            profitLossPercent = (profitLoss / trade.entry) * 100;
-        } else if (price >= trade.stoploss) {
-            hitType = 'stoploss';
-            profitLoss = trade.entry - price; // For sell, loss if price goes up
-            profitLossPercent = (profitLoss / trade.entry) * 100;
-        }
-    }
-
-    if (hitType) {
-        return {
-            type: hitType,
-            profitLoss: profitLoss,
-            profitLossPercent: profitLossPercent,
-            exitPrice: price
-        };
+        if (currentPrice >= trade.target - tolerance) return 'target';
+        if (currentPrice <= trade.stoploss + tolerance) return 'stoploss';
+    } else { // SELL
+        if (currentPrice <= trade.target + tolerance) return 'target';
+        if (currentPrice >= trade.stoploss - tolerance) return 'stoploss';
     }
     return false;
 }
 
-
-async function checkSymbol(symbol, mlModels, mlTrainingData) {
+// संकेतों की जांच करने और भेजने के लिए मुख्य लॉजिक
+async function checkSymbol(symbol) { // अब एक ही सिंबल स्वीकार करता है
+    console.log(`--- ${symbol} की जाँच की जा रही है ---`);
     const candles = await fetchKlines(symbol, INTERVAL);
     const price = await fetchCurrentPrice(symbol);
-    if (!candles || !price) return;
 
-    const analysis = analyzeData(candles, mlTrainingData);
-    if (!analysis) return;
-
-    // If ML models not trained yet and enough training data, train models
-    if (!mlModels.targetModel && mlTrainingData.atr.length >= 30) {
-        const models = trainMLModel(mlTrainingData.atr, mlTrainingData.price, mlTrainingData.targets, mlTrainingData.stoplosses);
-        mlModels.targetModel = models.targetModel;
-        mlModels.stoplossModel = models.stoplossModel;
-        console.log("ML Models trained!");
+    if (!candles || !price || candles.length === 0) {
+        console.warn(`${symbol}: डेटा पर्याप्त नहीं है या मूल्य फ़ेच विफल हो गया है. छोड़ रहे हैं.`);
+        return;
     }
 
-    console.log(`Analysis for ${symbol} @ ${new Date(candles.at(-1).time).toLocaleString()}: Signal=${analysis.signal}, Price=${price.toFixed(2)}`);
+    const analysis = analyzeData(candles);
+    if (!analysis) {
+        console.warn(`${symbol}: विश्लेषण विफल हो गया. छोड़ रहे हैं.`);
+        return;
+    }
 
+    // सभी सक्रिय उपयोगकर्ताओं के माध्यम से दोहराएँ
     for (const chatId of USER_CHAT_IDS) {
-        if (!userStatus[chatId]) { // Check if user wants to receive signals
-            continue; // Skip if user is inactive
+        // यदि उपयोगकर्ता सक्रिय है तो ही सिग्नल भेजें
+        if (userStatus[chatId] !== true) {
+            // console.log(`उपयोगकर्ता ${chatId} निष्क्रिय है. ${symbol} के लिए सिग्नल छोड़ रहे हैं.`);
+            continue;
         }
 
         if (!activeTrades[chatId]) activeTrades[chatId] = {};
@@ -1177,42 +334,51 @@ async function checkSymbol(symbol, mlModels, mlTrainingData) {
 
         const trade = activeTrades[chatId][symbol];
 
+        // --- सक्रिय ट्रेड स्थिति को संभालें ---
         if (trade && trade.status === 'active') {
-            const hitResult = checkIfHit(price, trade);
-            if (hitResult) {
-                const { type, profitLoss, profitLossPercent, exitPrice } = hitResult;
-                const profitLossEmoji = profitLoss >= 0 ? '🟢' : '🔴';
-                const tradeDuration = new Date(Date.now() - trade.entryTime).toISOString().slice(11, 19); // HH:MM:SS format
-
-                const summaryMessage = `📈 *${symbol} ${trade.signal} Trade Closed!* ${profitLossEmoji}
----------------------------------------------
-*Entry Price:* ${trade.entry.toFixed(2)}
-*Exit Price:* ${exitPrice.toFixed(2)}
-*Outcome:* ${type.toUpperCase()}
-*P&L:* ${profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} (${profitLossPercent.toFixed(2)}%)
-*Duration:* ${tradeDuration}
----------------------------------------------
-`;
-                await bot.sendMessage(chatId, summaryMessage, { parse_mode: 'Markdown' });
-                trade.status = 'closed';
-                delete activeTrades[chatId][symbol];
-                lastSignalSent[chatId][symbol] = null;
+            const hit = checkIfHit(price, trade);
+            if (hit) {
+                const pnl = (trade.signal === 'BUY') ? (price - trade.entry) : (trade.entry - price);
+                await bot.sendMessage(chatId, `✅ *${symbol} ${trade.signal} ट्रेड बंद हुआ!* ✅
+*एंट्री:* ${trade.entry.toFixed(2)} USDT
+*एग्जिट:* ${price.toFixed(2)} USDT
+*परिणाम:* ${hit.toUpperCase()}
+*P&L:* ${pnl.toFixed(2)} USDT`, { parse_mode: 'Markdown' });
+                trade.status = 'closed'; // बंद के रूप में चिह्नित करें
+                delete activeTrades[chatId][symbol]; // सक्रिय ट्रेडों से हटाएँ
+                lastSignalSent[chatId][symbol] = null; // इस सिंबल के लिए अंतिम सिग्नल रीसेट करें
+                console.log(`${chatId} के लिए ${symbol} के लिए ट्रेड बंद हुआ. परिणाम: ${hit}`);
+            } else {
+                // सक्रिय ट्रेड के बारे में उपयोगकर्ता को अपडेट करें
+                // आप स्पैम से बचने के लिए इसे कम बार करना चाह सकते हैं
+                // console.log(`${chatId} के लिए ${symbol} के लिए ट्रेड अभी भी सक्रिय है. वर्तमान मूल्य: ${price.toFixed(2)}`);
             }
-            continue;
+            continue; // अगले उपयोगकर्ता/सिंबल पर जाएँ
         }
 
+        // --- नए सिग्नल जेनरेट करें और भेजें ---
         if (analysis.signal !== 'HOLD' && !activeTrades[chatId][symbol]) {
-            // Use ML to calculate target/stoploss if models available
-            const { target, stoploss } = calculateTargetsML(analysis.signal, price, analysis.lastAtr, mlModels);
+            // ML मॉडल का उपयोग करके लक्ष्यों की गणना करें
+            const { target, stoploss } = calculateTargets(analysis.signal, price, analysis.lastAtr);
 
-            await bot.sendMessage(chatId, `📊 *${symbol}* Signal: *${analysis.signal}*
-💰 Entry: ${price.toFixed(2)}
-🎯 Target: ${target.toFixed(2)}
-🛑 Stoploss: ${stoploss.toFixed(2)}
-📉 RSI: ${analysis.lastRsi.toFixed(2)} | EMA: ${analysis.lastEma.toFixed(2)}
-📈 MACD: ${analysis.lastMacd.MACD.toFixed(2)} / ${analysis.lastMacd.signal.toFixed(2)}
-📊 Volume: ${analysis.lastVolume.toFixed(0)} / SMA: ${analysis.lastVolumeSMA.toFixed(0)}`, { parse_mode: 'Markdown' });
+            const signalMsg = `📊 *${symbol} नया सिग्नल!* 📊
+*प्रकार:* ${analysis.signal}
+*एंट्री:* ${price.toFixed(2)} USDT
+*🎯 लक्ष्य:* ${target.toFixed(2)} USDT
+*🛑 स्टॉपलॉस:* ${stoploss.toFixed(2)} USDT
+*R:R अनुपात:* ${(Math.abs(target - price) / Math.abs(stoploss - price)).toFixed(2)}:1
 
+*--- विश्लेषण सारांश ---*
+*RSI:* ${analysis.lastRsi.toFixed(2)} (>${analysis.signal === 'BUY' ? '50' : '<50'})
+*EMA (14):* ${analysis.lastEma.toFixed(2)} (${analysis.signal === 'BUY' ? 'मूल्य > EMA' : 'मूल्य < EMA'})
+*MACD:* ${analysis.lastMacd.MACD.toFixed(2)} (सिग्नल: ${analysis.lastMacd.signal.toFixed(2)})
+*वॉल्यूम:* ${analysis.lastVolume.toFixed(0)} (SMA ${analysis.lastVolumeSMA.toFixed(0)})
+
+_यह एक स्वचालित सिग्नल है. हमेशा अपना खुद का शोध करें._`;
+
+            await bot.sendMessage(chatId, signalMsg, { parse_mode: 'Markdown' });
+
+            // सक्रिय ट्रेड स्टोर करें
             activeTrades[chatId][symbol] = {
                 signal: analysis.signal,
                 entry: price,
@@ -1220,145 +386,166 @@ async function checkSymbol(symbol, mlModels, mlTrainingData) {
                 stoploss,
                 atr: analysis.lastAtr,
                 status: 'active',
-                entryTime: Date.now() // Record entry time
+                timestamp: Date.now()
             };
             lastSignalSent[chatId][symbol] = analysis.signal;
+            console.log(`${chatId} को ${symbol} के लिए नया ${analysis.signal} सिग्नल भेजा गया.`);
+
         } else if (analysis.signal === 'HOLD' && lastSignalSent[chatId][symbol] !== 'HOLD') {
-            // This message should only be sent if no active trade for this symbol
-            if (!activeTrades[chatId][symbol]) {
-                 await bot.sendMessage(chatId, `ℹ️ *${symbol}* Signal: *HOLD*`, { parse_mode: 'Markdown' });
-                 lastSignalSent[chatId][symbol] = 'HOLD';
-            }
+            // केवल HOLD भेजें यदि पिछला सिग्नल HOLD नहीं था
+            await bot.sendMessage(chatId, `ℹ️ *${symbol}* सिग्नल: *HOLD*`, { parse_mode: 'Markdown' });
+            lastSignalSent[chatId][symbol] = 'HOLD';
+            console.log(`${chatId} को ${symbol} के लिए HOLD सिग्नल भेजा गया.`);
         }
     }
 }
 
-// Bot command handlers
 
-// Command to show active trades with status buttons
-bot.onText(/\/trades/, (msg) => { // Changed from /status to /trades to avoid conflict
+// --- बॉट कमांड हैंडलर ---
+
+// Start कमांड
+bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
-    if (!activeTrades[chatId] || Object.keys(activeTrades[chatId]).length === 0) {
-        bot.sendMessage(chatId, "Aapke paas koi active trade nahi hai.");
-        return;
+    if (!USER_CHAT_IDS.includes(chatId)) {
+        USER_CHAT_IDS.push(chatId);
+        saveUserChatIds(); // नया उपयोगकर्ता सहेजें
+        userStatus[chatId] = true; // नए उपयोगकर्ताओं के लिए डिफ़ॉल्ट रूप से सक्रिय
+        saveUserStatus();
+        await bot.sendMessage(chatId, "👋 स्वागत है! आपको क्रिप्टो ट्रेडिंग सिग्नल बॉट में जोड़ा गया है. अब आपको चयनित सिंबल के लिए सिग्नल मिलेंगे. अपनी सदस्यता जांचने के लिए /status या कमांड के लिए /help का उपयोग करें.");
+        console.log(`नया उपयोगकर्ता जोड़ा गया: ${chatId}`);
+    } else {
+        await bot.sendMessage(chatId, "आप पहले से ही सब्सक्राइब हैं! अपनी सेटिंग्स जांचने के लिए /status या कमांड के लिए /help का उपयोग करें.");
     }
-
-    const trades = activeTrades[chatId];
-    const buttons = Object.entries(trades).map(([symbol, trade]) => {
-        return [{ text: `${symbol} - ${trade.status}`, callback_data: `trade_status_${symbol}` }];
-    });
-
-    bot.sendMessage(chatId, "Aapke active trades status:", {
-        reply_markup: {
-            inline_keyboard: buttons
-        }
-    });
 });
 
-// Handle callback button presses for trade status
-bot.on('callback_query', async (callbackQuery) => {
-    const msg = callbackQuery.message;
+// Help कमांड
+bot.onText(/\/help/, async (msg) => {
     const chatId = msg.chat.id;
-    const data = callbackQuery.data;
+    const helpMsg = `*उपलब्ध कमांड:*
+/start - सिग्नल के लिए सब्सक्राइब करें.
+/stop - सिग्नल से अनसब्सक्राइब करें.
+/status - अपनी वर्तमान सिग्नल सदस्यता स्थिति (सक्रिय/निष्क्रिय) और सक्रिय ट्रेड देखें.
+/toggle - अपनी सिग्नल सदस्यता को चालू/बंद करें.
+/help - यह हेल्प मैसेज दिखाएँ.
 
-    if (data.startsWith('trade_status_')) {
-        const symbol = data.split('_')[2];
-        const trade = activeTrades[chatId] ? activeTrades[chatId][symbol] : null;
+_कृपया याद रखें, ये शैक्षिक उद्देश्यों के लिए स्वचालित सिग्नल हैं. हमेशा अपना खुद का शोध करें और अपने जोखिम का प्रबंधन करें._`;
+    await bot.sendMessage(chatId, helpMsg, { parse_mode: 'Markdown' });
+});
 
-        if (!trade) {
-            await bot.answerCallbackQuery(callbackQuery.id, { text: "Trade mil nahi raha." });
-            return;
-        }
+// Stop कमांड
+bot.onText(/\/stop/, async (msg) => {
+    const chatId = msg.chat.id;
+    const index = USER_CHAT_IDS.indexOf(chatId);
+    if (index > -1) {
+        USER_CHAT_IDS.splice(index, 1);
+        delete userStatus[chatId]; // स्थिति भी हटाएँ
+        delete activeTrades[chatId]; // सक्रिय ट्रेड साफ़ करें
+        delete lastSignalSent[chatId]; // अंतिम भेजे गए सिग्नल साफ़ करें
+        saveUserChatIds();
+        saveUserStatus();
+        await bot.sendMessage(chatId, "😔 आपको अनसब्सक्राइब कर दिया गया है. अब आपको सिग्नल नहीं मिलेंगे. आप /start के साथ कभी भी फिर से सब्सक्राइब कर सकते हैं.");
+        console.log(`उपयोगकर्ता अनसब्सक्राइब किया गया: ${chatId}`);
+    } else {
+        await bot.sendMessage(chatId, "आप वर्तमान में सब्सक्राइब नहीं हैं. सब्सक्राइब करने के लिए /start का उपयोग करें.");
+    }
+});
 
-        // Format the entry time for display
-        const entryDate = new Date(trade.entryTime);
-        const formattedEntryTime = entryDate.toLocaleString('en-IN', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true // For AM/PM format
-        });
+// Status कमांड टॉगल बटन के साथ
+bot.onText(/\/status/, async (msg) => {
+    const chatId = msg.chat.id;
+    const isActive = userStatus[chatId] ?? false; // यदि सेट नहीं है तो डिफ़ॉल्ट रूप से गलत
 
-        const statusMsg = `Trade status for *${symbol}*:\n` +
-                          `Signal: ${trade.signal}\n` +
-                          `Entry: ${trade.entry.toFixed(2)}\n` +
-                          `*Entry Time:* ${formattedEntryTime}\n` + // Added entry time here
-                          `Target: ${trade.target.toFixed(2)}\n` +
-                          `Stoploss: ${trade.stoploss.toFixed(2)}\n` +
-                          `Status: ${trade.status}`;
-        await bot.sendMessage(chatId, statusMsg, { parse_mode: 'Markdown' });
-        await bot.answerCallbackQuery(callbackQuery.id);
-    } else if (data === 'toggle_status') {
-        userStatus[chatId] = !userStatus[chatId];
-        await bot.answerCallbackQuery(callbackQuery.id, { text: `Signals ${userStatus[chatId] ? 'activated' : 'deactivated'}.` });
-        const buttonLabel = userStatus[chatId] ? "🟢 Active" : "🔴 Inactive";
-        await bot.editMessageText(`Your signal status is: *${buttonLabel}*`, {
-            chat_id: chatId,
-            message_id: msg.message_id,
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: userStatus[chatId] ? "Deactivate" : "Activate", callback_data: 'toggle_status' }]
-                ]
+    let statusMsg = `आपकी सिग्नल सदस्यता स्थिति है: *${isActive ? "🟢 सक्रिय" : "🔴 निष्क्रिय"}*`;
+
+    // यदि कोई सक्रिय ट्रेड है तो प्रदर्शित करें
+    if (activeTrades[chatId] && Object.keys(activeTrades[chatId]).length > 0) {
+        statusMsg += `\n\n*आपके सक्रिय ट्रेड:*`;
+        for (const symbol in activeTrades[chatId]) {
+            const trade = activeTrades[chatId][symbol];
+            if (trade.status === 'active') {
+                statusMsg += `\n- *${symbol}* (${trade.signal}): एंट्री ${trade.entry.toFixed(2)}, लक्ष्य ${trade.target.toFixed(2)}, स्टॉपलॉस ${trade.stoploss.toFixed(2)}`;
             }
-        });
+        }
+    } else {
+        statusMsg += `\n\nआपके पास कोई सक्रिय ट्रेड नहीं है.`;
     }
-});
 
-
-bot.onText(/\/status/, (msg) => {
-    const chatId = msg.chat.id;
-    const isActive = userStatus[chatId] ?? false; // Default to false if not set
-    const buttonLabel = isActive ? "🟢 Active" : "🔴 Inactive";
-
-    bot.sendMessage(chatId, `Your signal status is: *${buttonLabel}*`, {
+    await bot.sendMessage(chatId, statusMsg, {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: isActive ? "Deactivate" : "Activate", callback_data: 'toggle_status' }]
+                [{ text: isActive ? "सिग्नल निष्क्रिय करें" : "सिग्नल सक्रिय करें", callback_data: 'toggle_status' }]
             ]
         }
     });
 });
 
-bot.onText(/\/start/, (msg) => {
+// कॉलबैक बटन प्रेस (toggle_status के लिए) को संभालें
+bot.on('callback_query', async (callbackQuery) => {
+    const msg = callbackQuery.message;
     const chatId = msg.chat.id;
-    if (!USER_CHAT_IDS.includes(chatId)) {
-        USER_CHAT_IDS.push(chatId);
-        saveUserChatIds();
+    const data = callbackQuery.data;
+
+    if (data === 'toggle_status') {
+        const currentStatus = userStatus[chatId] ?? false;
+        userStatus[chatId] = !currentStatus; // स्थिति को टॉगल करें
+        saveUserStatus();
+
+        const newStatusText = userStatus[chatId] ? "🟢 सक्रिय" : "🔴 निष्क्रिय";
+        await bot.editMessageText(`आपकी सिग्नल सदस्यता स्थिति अब है: *${newStatusText}*`, {
+            chat_id: chatId,
+            message_id: msg.message_id,
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: userStatus[chatId] ? "सिग्नल निष्क्रिय करें" : "सिग्नल सक्रिय करें", callback_data: 'toggle_status' }]
+                ]
+            }
+        });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: `सिग्नल ${userStatus[chatId] ? 'सक्रिय' : 'निष्क्रिय'}.` });
+        console.log(`उपयोगकर्ता ${chatId} ने स्थिति को ${userStatus[chatId]} पर टॉगल किया.`);
+    } else {
+        // लोडिंग स्पिनर को रोकने के लिए किसी भी अन्य कॉलबैक क्वेरी का उत्तर दें
+        await bot.answerCallbackQuery(callbackQuery.id);
     }
-    userStatus[chatId] = true; // Activate signals for new users by default
-    bot.sendMessage(chatId, "Welcome to the Crypto Trading Signal Bot! You will receive signals for selected symbols. Use /status to manage signals and /trades to view active trades.");
 });
 
-// Periodic check every 15 minutes
+
+// --- मुख्य लूप ---
 async function mainLoop() {
-    const mlTrainingData = { atr: [], price: [], targets: [], stoplosses: [] };
-    const mlModels = { targetModel: null, stoplossModel: null };
+    // सुनिश्चित करें कि डेटा डायरेक्टरी मौजूद है
+    if (!fs.existsSync('./data')) {
+        fs.mkdirSync('./data');
+    }
+
+    loadUserChatIds();
+    loadUserStatus();
+    initializeMLTrainingData(); // ML मॉडल को शुरू करने के लिए कुछ डमी डेटा के साथ प्रारंभ करें
+
+    // प्रारंभिक प्रशिक्षण यदि initializeMLTrainingData द्वारा पर्याप्त डेटा प्रदान किया गया है
+    if (mlTrainingData.atr.length >= 50 && mlModels.targetModel === null) {
+        const trainedModels = trainMLModel(mlTrainingData.atr, mlTrainingData.price, mlTrainingData.targets, mlTrainingData.stoplosses);
+        mlModels.targetModel = trainedModels.targetModel;
+        mlModels.stoplossModel = trainedModels.stoplossModel;
+    }
+
 
     while (true) {
-        console.log("Starting new analysis cycle...");
+        console.log(`\n--- नया विश्लेषण चक्र ${new Date().toLocaleString()} पर शुरू हो रहा है ---`);
 
-        for (const symbol of SYMBOLS) {
-            console.log(`Checking symbol: ${symbol}`);
-            await checkSymbol(symbol, mlModels, mlTrainingData);
+        // अब केवल SINGLE_SYMBOL_TO_TRACK को चेक करें
+        await checkSymbol(SINGLE_SYMBOL_TO_TRACK);
 
-            console.log(`Sleeping 1 minute before next symbol...`);
-            await new Promise(r => setTimeout(r, 60 * 1000));  // 1 minute delay
-        }
-
-        console.log("Cycle done, restarting symbols...");
+        console.log(`--- ${SINGLE_SYMBOL_TO_TRACK} के लिए चक्र पूरा हुआ. अगले चक्र के लिए ${INTERVAL} प्रतीक्षा कर रहा है ---`);
+        // चुने गए इंटरवल की अवधि के लिए प्रतीक्षा करें (उदाहरण के लिए, 1h मोमबत्तियों के लिए 1 घंटा)
+        // '1h' जैसे इंटरवल को मिलीसेकंड में बदलें
+        const intervalInMs = parseInt(INTERVAL) * 60 * 60 * 1000;
+        await new Promise(r => setTimeout(r, intervalInMs));
     }
 }
 
-loadUserChatIds();
-// Initialize userStatus for existing users, assuming they are active by default
-USER_CHAT_IDS.forEach(id => {
-    if (userStatus[id] === undefined) {
-        userStatus[id] = true;
-    }
-});
+// बॉट शुरू करें
 mainLoop();
+console.log('क्रिप्टो ट्रेडिंग सिग्नल बॉट शुरू हुआ!');
+console.log(`बॉट वर्तमान में ट्रैक कर रहा है: ${SINGLE_SYMBOL_TO_TRACK}`);
+console.log('टेलीग्राम पर बॉट को /start भेजकर सदस्यता लें.');
