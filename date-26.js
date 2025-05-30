@@ -6,7 +6,7 @@ const { RSI, EMA, MACD, SMA, ATR } = require('technicalindicators');
 const MLR = require('ml-regression').MultivariateLinearRegression;
 
 // --- कॉन्फ़िगरेशन ---
-const INTERVAL = "1m"; // सिंगल इंटरवल
+const INTERVAL = "1h"; // सिंगल इंटरवल
 
 // केवल एक सिंबल को ट्रैक करने के लिए
 const SINGLE_SYMBOL_TO_TRACK = 'BTCUSDT'; // <<--- यहाँ उस सिंबल का नाम डालें जिसे आप ट्रैक करना चाहते हैं
@@ -539,7 +539,7 @@ async function mainLoop() {
         console.log(`--- ${SINGLE_SYMBOL_TO_TRACK} के लिए चक्र पूरा हुआ. अगले चक्र के लिए ${INTERVAL} प्रतीक्षा कर रहा है ---`);
         // चुने गए इंटरवल की अवधि के लिए प्रतीक्षा करें (उदाहरण के लिए, 1h मोमबत्तियों के लिए 1 घंटा)
         // '1h' जैसे इंटरवल को मिलीसेकंड में बदलें
-        const intervalInMs = parseInt(INTERVAL) * 60 * 60 * 1000;
+ const intervalInMs = parseInt(INTERVAL) * 60 * 1000; 
         await new Promise(r => setTimeout(r, intervalInMs));
     }
 }
