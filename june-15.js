@@ -329,7 +329,8 @@ const SYMBOL = [
 ];
 
 const INTERVAL = '15m';
-const BOT = new TelegramBot("7082982229:AAGJXNPWuATGRdPnzyhJ7Mb0PVbY4a5h9fY", { polling: true });
+const BOT = new TelegramBot( '8003756443:AAHOP678U2KdAiTuVYQZVQ2DsYnT2Oq4PnE'
+, { polling: true });
 
 const USER_CHAT_IDS = [];
 const activeTrades = {}; // { userId: { symbol: { signal, entry, target, stoploss } } }
