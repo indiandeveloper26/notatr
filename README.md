@@ -5,3 +5,4 @@
 # notatr
 # atrbot-30
 # trad-bot
+# notatr-june
